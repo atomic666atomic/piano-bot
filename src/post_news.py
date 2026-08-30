@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-پست اخبار روز:
+پست اخبار روز کانال Alipiano:
 
-1) از چند فید RSS معتبر و رایگان، خبرهای تازه (۳۶ ساعت اخیر) را جمع می‌کند
-2) با کلیدواژه‌های پیانو/کلاسیک/AI به آن‌ها امتیاز می‌دهد و بهترین‌ها را انتخاب می‌کند
-3) اگر GROQ_API_KEY داشته باشد، خلاصه‌ی فارسی هر خبر را با Groq می‌نویسد
-   (اگر Groq در دسترس نباشد، توضیح کوتاه خود خبر استفاده می‌شود)
-4) یک پست مرتب با عنوان، تاریخ شمسی، منبع و لینک هر خبر می‌فرستد
+1) خبرهای تازه‌ی ۳۶ ساعت اخیر از فیدهای RSS معتبر
+2) انتخاب بهترین خبرها با امتیازدهی (پیانو > کلاسیک > AI > موسیقی)
+3) خلاصه‌ی فارسی: اول با Groq (کیفیت بالا)؛ اگر در دسترس نبود، ترجمه‌ی رایگان
+4) پست نهایی دقیقاً با فرمت رسمی برند Alipiano (وب‌سایت + هشتگ‌ها + امضا)
 """
 
 import os
@@ -17,23 +16,36 @@ import time
 from datetime import datetime, timezone
 
 import feedparser
+import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import common
 from ai import groq
 
-# ── منابع خبری (RSS رایگان) ───────────────────────────────────
-# می‌توانید آیتم‌ها را کم/زیاد کنید؛ کافی است هر کدام نام و آدرس RSS داشته باشد.
+# ── هویت رسمی برند Alipiano ─────────────────────────────────
+WEBSITE_LINE = "🔗 وب‌سایت رسمی: https://alipiano.ir"
+CORE_HASHTAGS = "#Alipiano #AliBaghbani #OneHandOneDream #پیانو #پیانیست_تک‌دست"
+SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
+
+
+def brand_footer(extra_hashtags: str = "") -> str:
+    """بخش پایانی ثابتِ همه‌ی پست‌ها: وب‌سایت + هشتگ‌ها + امضا."""
+    tags = CORE_HASHTAGS + (f" {extra_hashtags}" if extra_hashtags else "")
+    return f"{WEBSITE_LINE}\n\n{tags}\n\n{SIGNATURE}"
+
+
+# ── منابع خبری (RSS رایگان) ─────────────────────────────────
+# می‌توانید آیتم‌ها را کم/زیاد کنید؛ کافی است هر کدام نام کوتاه و آدرس RSS داشته باشد.
 FEEDS = [
-    {"name": "The Guardian (فرهنگ و هنر)", "url": "https://www.theguardian.com/culture/rss"},
-    {"name": "BBC (سرگرمی و هنر)", "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml"},
-    {"name": "Ars Technica (هوش مصنوعی)", "url": "https://arstechnica.com/ai/feed/"},
-    {"name": "MIT Technology Review (هوش مصنوعی)", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed"},
+    {"name": "Guardian", "url": "https://www.theguardian.com/culture/rss"},
+    {"name": "BBC", "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml"},
+    {"name": "Ars Technica", "url": "https://arstechnica.com/ai/feed/"},
+    {"name": "MIT Tech Review", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed"},
 ]
 
-MAX_ITEMS = 4        # تعداد خبر در هر پست
-MAX_AGE_HOURS = 36   # فقط خبرهای ۳۶ ساعت اخیر
+MAX_ITEMS = 3          # تعداد خبر در هر پست (کوتاه و خوانا)
+MAX_AGE_HOURS = 36     # فقط خبرهای ۳۶ ساعت اخیر
 
 # امتیازدهی خبر: پیانو مهم‌تر، بعد موسیقی کلاسیک و AI، بعد موسیقی به‌طور کلی
 # (هر گروه فقط یک‌بار اعمال می‌شود)
@@ -57,8 +69,12 @@ NEGATIVE_KEYWORDS = [
     "anime", "k-pop", "esport", "e-sport",
 ]
 
-# ارقام فارسی (U+06F0 تا U+06F9)
 FA_DIGITS = "".join(chr(0x06F0 + i) for i in range(10))
+
+
+def fa_num(n: int) -> str:
+    """عدد را به رقم فارسی تبدیل می‌کند: 3 -> ۳"""
+    return str(n).translate(str.maketrans("0123456789", FA_DIGITS))
 
 
 def strip_html(text: str) -> str:
@@ -141,58 +157,89 @@ def collect_items() -> list:
     return top[:MAX_ITEMS]
 
 
-def fallback_summary(item: dict) -> str:
-    """وقتی AI در دسترس نیست: توضیح کوتاه خود خبر."""
-    desc = strip_html(item["description"])
-    if not desc:
-        return item["title"]
-    return desc[:160] + ("…" if len(desc) > 160 else "")
+def translate_to_persian(texts: list) -> list:
+    """ترجمه‌ی رایگان به فارسی (بدون کلید API) — وقتی Groq در دسترس نیست.
+    اولویت: MyMemory (معتبر و پایدار روی سرور)، بعد Google gtx، در نهایت متن اصلی."""
+    results = []
+    for t in texts:
+        translated = None
+        # گزینه‌ی ۱: MyMemory
+        try:
+            r = requests.get(
+                "https://api.mymemory.translated.net/get",
+                params={"q": t, "langpair": "en|fa"},
+                timeout=20,
+            )
+            r.raise_for_status()
+            data = r.json()
+            if str(data.get("responseStatus")) == "200":
+                translated = (data.get("responseData") or {}).get("translatedText")
+        except Exception:  # noqa: BLE001
+            pass
+        # گزینه‌ی ۲: Google (gtx)
+        if not translated:
+            try:
+                r = requests.get(
+                    "https://translate.googleapis.com/translate_a/single",
+                    params={"client": "gtx", "sl": "en", "tl": "fa", "dt": "t", "q": t},
+                    timeout=20,
+                )
+                r.raise_for_status()
+                data = r.json()
+                translated = "".join(part[0] for part in data[0] if part and part[0]).strip()
+            except Exception:  # noqa: BLE001
+                pass
+        results.append(translated or t)
+    return results
 
 
 def summarize(items: list) -> list:
-    """خلاصه‌ی فارسی هر خبر را با Groq می‌گیرد؛ اگر نشد، توضیح خود خبر را برمی‌گرداند."""
-    listing = []
-    for i, it in enumerate(items, 1):
-        desc = strip_html(it["description"])[:400]
-        listing.append(f"{i}. منبع: {it['source']}\n   عنوان: {it['title']}\n   توضیح: {desc}")
+    """خلاصه‌ی فارسی هر خبر: اول Groq (کیفیت بالا)، بعد ترجمه‌ی رایگان عنوان."""
+    if os.environ.get("GROQ_API_KEY"):
+        try:
+            listing = []
+            for i, it in enumerate(items, 1):
+                desc = strip_html(it["description"])[:400]
+                listing.append(f"{i}. منبع: {it['source']}\n   عنوان: {it['title']}\n   توضیح: {desc}")
 
-    user_prompt = (
-        "خبرهای زیر را می‌بینی. برای هر خبر یک خلاصه‌ی یک تا دو خطی به فارسی ساده و روان بنویس.\n"
-        "قوانین سخت:\n"
-        f"- خروجی دقیقاً {len(items)} خط باشد، نه بیشتر، نه کمتر.\n"
-        "- هر خط با شماره‌ی همان خبر و پرانتز بسته شروع شود، مثلاً: ۱)\n"
-        "- هر خلاصه زیر ۱۸۰ کاراکتر باشد.\n"
-        "- لینک، عنوان، یا کلمه‌ی اضافه ننویس؛ فقط خط‌های خلاصه.\n\n"
-        + "\n\n".join(listing)
-    )
+            user_prompt = (
+                "خبرهای زیر را می‌بینی. برای هر خبر یک خلاصه‌ی یک خطی (حداکثر ۱۴۰ کاراکتر) به فارسی ساده و گرم بنویس.\n"
+                "قوانین سخت:\n"
+                f"- خروجی دقیقاً {len(items)} خط باشد، نه بیشتر، نه کمتر.\n"
+                "- هر خط با شماره‌ی همان خبر و پرانتز بسته شروع شود، مثلاً: ۱)\n"
+                "- لحن: صمیمی و الهام‌بخش، مثل یک پیانیست حرفه‌ای.\n"
+                "- لینک، عنوان انگلیسی، یا کلمه‌ی اضافه ننویس؛ فقط خط‌های خلاصه.\n\n"
+                + "\n\n".join(listing)
+            )
+            raw = groq(
+                [
+                    {"role": "system", "content": "شما نویسنده‌ی رسمی کانال تلگرام Alipiano (علی باغبانی، پیانیست تک‌دست) هستید و متن‌ها را فارسی، گرم و کوتاه می‌نویسید."},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=900,
+            )
+            lines = {}
+            for line in raw.splitlines():
+                m = re.match(r"^\s*(\d+)\s*[)）:：]?\s*(.+)$", line.strip())
+                if m:
+                    lines[int(m.group(1))] = m.group(2).strip()
+            summaries = [lines.get(i) or strip_html(it["title"])[:140] for i, it in enumerate(items, 1)]
+            print("✔ خلاصه‌سازی با Groq انجام شد.")
+            return summaries
+        except Exception as exc:  # noqa: BLE001
+            print(f"⚠ Groq در دسترس نبود ({exc}); از ترجمه‌ی رایگان استفاده می‌شود.")
+    else:
+        print("ℹ️ GROQ_API_KEY تنظیم نشده؛ از ترجمه‌ی رایگان عنوان‌ها استفاده می‌شود.")
 
-    try:
-        raw = groq(
-            [
-                {"role": "system", "content": "ویراستار خبری یک کانال تلگرام فارسی‌زبان درباره‌ی پیانو، موسیقی کلاسیک و هوش مصنوعی در موسیقی هستی."},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=900,
-        )
-        lines = {}
-        for line in raw.splitlines():
-            m = re.match(r"^\s*(\d+)\s*[)）:：]?\s*(.+)$", line.strip())
-            if m:
-                lines[int(m.group(1))] = m.group(2).strip()
-        summaries = [lines.get(i) or fallback_summary(it) for i, it in enumerate(items, 1)]
-        print("✔ خلاصه‌سازی با Groq انجام شد.")
-        return summaries
-    except Exception as exc:  # noqa: BLE001
-        print(f"⚠ خلاصه‌سازی با AI نشد ({exc}); از توضیح خود خبر استفاده می‌شود.")
-        return [fallback_summary(it) for it in items]
+    return translate_to_persian([it["title"][:140] for it in items])
 
 
 def persian_date() -> str:
-    """تاریخ امروز به شمسی و با نام‌های فارسی، مثلاً: شنبه، ۷ شهریور ۱۴۰"""
+    """تاریخ امروز به شمسی و با نام‌های فارسی."""
     try:
         import jdatetime
-        jdatetime.set_locale(jdatetime.FA_LOCALE)  # نام روز و ماه به فارسی
+        jdatetime.set_locale(jdatetime.FA_LOCALE)
         from jdatetime import datetime as jd
         date_line = jd.now().strftime("%A، %d %B %Y")
         return date_line.translate(str.maketrans("0123456789", FA_DIGITS))
@@ -201,17 +248,17 @@ def persian_date() -> str:
 
 
 def build_post(items: list, summaries: list) -> str:
+    """پست نهایی دقیقاً با فرمت رسمی برند Alipiano."""
     lines = [
-        "📰 اخبار امروز در دنیای پیانو، موسیقی و AI",
+        "🎹 اخبار امروز در دنیای پیانو، موسیقی و AI",
         f"🗓 {persian_date()}",
         "",
     ]
     for i, (it, summary) in enumerate(zip(items, summaries), 1):
-        lines.append(f"{i}) {summary}")
-        lines.append(f"📎 منبع: {it['source']}")
+        lines.append(f"{fa_num(i)}) {summary} ({it['source']})")
         lines.append(f"🔗 {it['link']}")
         lines.append("")
-    lines.append("🤖 این پست به‌صورت خودکار از فیدهای RSS معتبر جمع‌آوری و خلاصه شد.")
+    lines.append(brand_footer(extra_hashtags="#اخبار_موسیقی"))
     return "\n".join(lines)
 
 
