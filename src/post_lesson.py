@@ -25,6 +25,8 @@ DATA_DIR = os.path.join(ROOT, "data")
 
 # ── هویت رسمی برند Alipiano ─────────────────────────────────
 WEBSITE_LINE = "🔗 وب‌سایت رسمی: https://alipiano.ir"
+SPOTIFY_LINE = "🎧 Spotify: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
+APPLE_LINE = "🎧 Apple Music: https://music.apple.com/us/artist/ali-baghbani/1828748850"
 CORE_HASHTAGS = "#Alipiano #AliBaghbani #OneHandOneDream #پیانو #پیانیست_تک‌دست"
 SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
 
@@ -32,9 +34,9 @@ FA_DIGITS = "".join(chr(0x06F0 + i) for i in range(10))
 
 
 def brand_footer(extra_hashtags: str = "") -> str:
-    """بخش پایانی ثابتِ همه‌ی پست‌ها: وب‌سایت + هشتگ‌ها + امضا."""
+    """بخش پایانی ثابتِ همه‌ی پست‌ها: لینک‌ها + هشتگ‌ها + امضا."""
     tags = CORE_HASHTAGS + (f" {extra_hashtags}" if extra_hashtags else "")
-    return f"{WEBSITE_LINE}\n\n{tags}\n\n{SIGNATURE}"
+    return f"{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}\n\n{tags}\n\n{SIGNATURE}"
 
 
 def fa_num(n: int) -> str:
