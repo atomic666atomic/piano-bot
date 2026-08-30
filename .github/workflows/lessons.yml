@@ -1,0 +1,50 @@
+name: "🎹 جلسه‌ی آموزشی (دوشنبه/چهارشنبه/جمعه)"
+
+on:
+  schedule:
+    # کرونِ GitHub به وقت UTC است. تهران = UTC+3:30 (ثابت، بدون ساعت تابستانی)
+    # ۰۹:۰۰ تهران = ۰۵:۳۰ UTC  |  روزها: 1=دوشنبه 3=چهارشنبه 5=جمعه
+    - cron: "30 5 * * 1,3,5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: piano-lesson
+  cancel-in-progress: false
+
+jobs:
+  post-lesson:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: دانلود رپو
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: نصب وابستگی‌ها
+        run: pip install -r requirements.txt
+
+      - name: تولید و ارسال جلسه
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python src/post_lesson.py
+
+      - name: ذخیره‌ی پیشرفت در رپو
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: به‌روزرسانی پیشرفت دوره"
+            git push
+          fi
