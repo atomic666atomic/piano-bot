@@ -17,9 +17,17 @@ MESSAGE_LIMIT = 4000  # لیمیت تلگرام 4096 است؛ کمی حاشیه�
 def _tg_call(method: str, **params) -> dict:
     """یک روش Bot API تلگرام را صدا می‌زند و پاسخ را برمی‌گرداند."""
     token = os.environ["TELEGRAM_BOT_TOKEN"]
+    if not token:
+        raise RuntimeError("TELEGRAM_BOT_TOKEN تنظیم نشده! Secret را در گیت‌هاب بررسی کنید.")
     url = f"https://api.telegram.org/bot{token}/{method}"
     resp = requests.post(url, json=params, timeout=60)
-    resp.raise_for_status()
+    if not resp.ok:
+        # نمایش دقیق دلیل خطا (مثلاً chat not found یا bot not member)
+        try:
+            detail = resp.json().get("description", resp.text)
+        except Exception:  # noqa: BLE001
+            detail = resp.text
+        raise RuntimeError(f"خطای تلگرام ({resp.status_code}) در {method}: {detail}")
     data = resp.json()
     if not data.get("ok"):
         raise RuntimeError(f"خطای API تلگرام: {data}")
