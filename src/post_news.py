@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-پست اخبار روز کانال Alipiano (نسخه‌ی ۳ — طبق راهنمای رسمی برند):
+پست اخبار روز کانال Alipiano (نسخه‌ی ۴ — طبق راهنمای رسمی برند):
 
 1) خبرهای تازه‌ی ۷۲ ساعت اخیر از فیدهای RSS معتبر
 2) انتخاب بهترین خبرها با امتیازدهی (پیانو > کلاسیک > AI > موسیقی)
 3) خلاصه‌ی فارسی: اول با Groq (کیفیت بالا)؛ اگر در دسترس نبود، ترجمه‌ی رایگان
 4) پست نهایی با «ساختار ۱» برند:
-   - فقط یک لینک Spotify به‌صورت متن قابل‌کلیک (هرگز URL خام نمایش داده نمی‌شود)
-   - بدون لینک وب‌سایت و اپل موزیک
+   - سه لینک قابل‌کلیک (وب‌سایت رسمی، اسپاتیفای، اپل موزیک) — هرگز URL خام نمایش داده نمی‌شود
    - هشتگ‌ها و امضای ثابت در انتها
 """
 
@@ -28,15 +27,22 @@ from ai import groq
 
 # ── هویت رسمی برند Alipiano ─────────────────────────────────
 SEPARATOR = "─" * 20
+WEBSITE_LINE = '🌐 <a href="https://alipiano.ir">وب‌سایت رسمی</a>'
 SPOTIFY_LINE = '🎧 <a href="https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN">اسپاتیفای</a>'
+APPLE_LINE = '🍎 <a href="https://music.apple.com/us/artist/ali-baghbani/1828748850">اپل موزیک</a>'
 CORE_HASHTAGS = "#Alipiano #علی_باغبانی #OneHandOneDream #پیانو"
 SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
 CLOSING_LINE = "✨ یک‌ذره‌ی موسیقی در روز، دلت را تازه می‌کند"
 
 
+def brand_links_block() -> str:
+    """سه لینک رسمی برند به‌صورت متن قابل‌کلیک."""
+    return f"{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}"
+
+
 def brand_footer() -> str:
-    """بخش پایانی ثابتِ همه‌ی پست‌ها: جداکننده + اسپاتیفای + هشتگ‌ها + امضا."""
-    return f"{SEPARATOR}\n{SPOTIFY_LINE}\n\n{CORE_HASHTAGS}\n\n{SIGNATURE}"
+    """بخش پایانی ثابتِ همه‌ی پست‌ها: جداکننده + سه لینک + هشتگ‌ها + امضا."""
+    return f"{SEPARATOR}\n{brand_links_block()}\n\n{CORE_HASHTAGS}\n\n{SIGNATURE}"
 
 
 # ── منابع خبری (RSS رایگان) ─────────────────────────────────
@@ -253,8 +259,8 @@ def persian_date() -> str:
 
 def build_post(items: list, summaries: list) -> str:
     """پست نهایی دقیقاً با «ساختار ۱» برند Alipiano.
-    طبق قوانین سخت برند: هیچ URL خامی نمایش داده نمی‌شود؛ فقط لینک قابل‌کلیک Spotify در انتها.
-    """
+    طبق قوانین سخت برند: هیچ URL خامی نمایش داده نمی‌شود؛
+    سه لینک (وب‌سایت، اسپاتیفای، اپل موزیک) به‌صورت متن قابل‌کلیک در انتها."""
     lines = [
         "🎹 اخبار امروز در دنیای موسیقی",
         "",
