@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-پست اخبار روز کانال Alipiano:
+پست اخبار روز کانال Alipiano (نسخه‌ی ۳ — طبق راهنمای رسمی برند):
 
-1) خبرهای تازه‌ی ۳۶ ساعت اخیر از فیدهای RSS معتبر
+1) خبرهای تازه‌ی ۷۲ ساعت اخیر از فیدهای RSS معتبر
 2) انتخاب بهترین خبرها با امتیازدهی (پیانو > کلاسیک > AI > موسیقی)
 3) خلاصه‌ی فارسی: اول با Groq (کیفیت بالا)؛ اگر در دسترس نبود، ترجمه‌ی رایگان
-4) پست نهایی دقیقاً با فرمت رسمی برند Alipiano (لینک‌ها انتهای پست + امضا)
+4) پست نهایی با «ساختار ۱» برند:
+   - فقط یک لینک Spotify به‌صورت متن قابل‌کلیک (هرگز URL خام نمایش داده نمی‌شود)
+   - بدون لینک وب‌سایت و اپل موزیک
+   - هشتگ‌ها و امضای ثابت در انتها
 """
 
 import os
@@ -25,21 +28,15 @@ from ai import groq
 
 # ── هویت رسمی برند Alipiano ─────────────────────────────────
 SEPARATOR = "─" * 20
-WEBSITE_LINE = "🌐 وب‌سایت: https://alipiano.ir"
-SPOTIFY_LINE = "🎧 اسپاتیفای: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
-APPLE_LINE = "🍎 اپل موزیک: https://music.apple.com/us/artist/ali-baghbani/1828748850"
+SPOTIFY_LINE = '🎧 <a href="https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN">اسپاتیفای</a>'
 CORE_HASHTAGS = "#Alipiano #علی_باغبانی #OneHandOneDream #پیانو"
 SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
-
-
-def brand_links_block() -> str:
-    """بخش «📎 لینک‌ها» با سه لینک رسمی برند."""
-    return f"📎 لینک‌ها:\n{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}"
+CLOSING_LINE = "✨ یک‌ذره‌ی موسیقی در روز، دلت را تازه می‌کند"
 
 
 def brand_footer() -> str:
-    """بخش پایانی ثابتِ همه‌ی پست‌ها: جداکننده + لینک‌ها + هشتگ‌ها + امضا."""
-    return f"{SEPARATOR}\n{brand_links_block()}\n\n{CORE_HASHTAGS}\n\n{SIGNATURE}"
+    """بخش پایانی ثابتِ همه‌ی پست‌ها: جداکننده + اسپاتیفای + هشتگ‌ها + امضا."""
+    return f"{SEPARATOR}\n{SPOTIFY_LINE}\n\n{CORE_HASHTAGS}\n\n{SIGNATURE}"
 
 
 # ── منابع خبری (RSS رایگان) ─────────────────────────────────
@@ -52,7 +49,7 @@ FEEDS = [
 ]
 
 MAX_ITEMS = 3          # تعداد خبر در هر پست (کوتاه و خوانا)
-MAX_AGE_HOURS = 36     # فقط خبرهای ۳۶ ساعت اخیر
+MAX_AGE_HOURS = 72     # فقط خبرهای ۷۲ ساعت اخیر
 
 # امتیازدهی خبر: پیانو مهم‌تر، بعد موسیقی کلاسیک و AI، بعد موسیقی به‌طور کلی
 # (هر گروه فقط یک‌بار اعمال می‌شود)
@@ -255,20 +252,22 @@ def persian_date() -> str:
 
 
 def build_post(items: list, summaries: list) -> str:
-    """پست نهایی دقیقاً با فرمت رسمی برند Alipiano.
-    طبق قانون برند: هیچ لینک خامی وسط متن نیست؛ همه‌ی لینک‌ها مرتب در انتها."""
+    """پست نهایی دقیقاً با «ساختار ۱» برند Alipiano.
+    طبق قوانین سخت برند: هیچ URL خامی نمایش داده نمی‌شود؛ فقط لینک قابل‌کلیک Spotify در انتها.
+    """
     lines = [
-        "🎹 اخبار امروز در دنیای پیانو، موسیقی و AI",
-        f"🗓 {persian_date()}",
+        "🎹 اخبار امروز در دنیای موسیقی",
         "",
+        f"({persian_date()})",
     ]
     for i, (it, summary) in enumerate(zip(items, summaries), 1):
         lines.append(f"{fa_num(i)}) {summary} ({it['source']})")
-    lines += ["", SEPARATOR, "📎 لینک‌ها:"]
-    for i, it in enumerate(items, 1):
-        lines.append(f"{fa_num(i)}) {it['link']}")
-    lines += ["", WEBSITE_LINE, SPOTIFY_LINE, APPLE_LINE, "", CORE_HASHTAGS, "", SIGNATURE]
-    return "\n".join(lines)
+    body = "\n".join(lines)
+    return (
+        f"{common.html_escape(body)}\n\n"
+        f"{CLOSING_LINE}\n\n"
+        f"{brand_footer()}"
+    )
 
 
 def main() -> None:
@@ -280,7 +279,7 @@ def main() -> None:
 
     summaries = summarize(items)
     post = build_post(items, summaries)
-    common.send_message(post, dry_run=dry_run)
+    common.send_message(post, dry_run=dry_run, parse_mode="HTML")
     if dry_run:
         print("ℹ️ حالت DRY RUN: پست ارسال نشد.")
 
