@@ -1,0 +1,34 @@
+name: "📰 اخبار روز (هر روز)"
+
+on:
+  schedule:
+    # ۰۸:۰۰ تهران = ۰۴:۳۰ UTC
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: piano-news
+  cancel-in-progress: false
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: دانلود رپو
+        uses: actions/checkout@v4
+
+      - name: نصب پایتون
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: نصب وابستگی‌ها
+        run: pip install -r requirements.txt
+
+      - name: جستجو، خلاصه‌سازی و ارسال اخبار
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python src/post_news.py
