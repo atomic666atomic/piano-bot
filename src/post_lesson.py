@@ -5,8 +5,9 @@
 
 1) از data/progress.json می‌خواند جلسه‌ی بعدی کدام است
 2) از Groq (هوش مصنوعی رایگان) می‌خواهد متن کامل آن جلسه را بنویسد
-3) متن را با فرمت رسمی برند Alipiano (وب‌سایت + هشتگ‌ها + امضا) به کانال می‌فرستد
-4) شمارنده‌ی پیشرفت را به‌روز می‌کند تا workflow آن را commit کند
+3) پست را دقیقاً با «ساختار شماره ۲» راهنمای برند می‌سازد و به کانال می‌فرستد
+4) بعد از ارسال، «📌 جلسه کامل: لینک همین پست» را به‌صورت خودکار اضافه می‌کند
+5) شمارنده‌ی پیشرفت را به‌روز می‌کند تا workflow آن را commit کند
 
 مهم: فقط وقتی پست با موفقیت ارسال شد، پیشرفت به‌روز می‌شود.
 """
@@ -24,19 +25,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "data")
 
 # ── هویت رسمی برند Alipiano ─────────────────────────────────
-WEBSITE_LINE = "🔗 وب‌سایت رسمی: https://alipiano.ir"
-SPOTIFY_LINE = "🎧 Spotify: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
-APPLE_LINE = "🎧 Apple Music: https://music.apple.com/us/artist/ali-baghbani/1828748850"
-CORE_HASHTAGS = "#Alipiano #AliBaghbani #OneHandOneDream #پیانو #پیانیست_تک‌دست"
+SEPARATOR = "─" * 20
+WEBSITE_LINE = "🌐 وب‌سایت: https://alipiano.ir"
+SPOTIFY_LINE = "🎧 اسپاتیفای: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
+APPLE_LINE = "🍎 اپل موزیک: https://music.apple.com/us/artist/ali-baghbani/1828748850"
+LESSON_HASHTAGS = "#Alipiano #آموزش_پیانو #علی_باغبانی #OneHandOneDream #پیانو"
 SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
 
 FA_DIGITS = "".join(chr(0x06F0 + i) for i in range(10))
-
-
-def brand_footer(extra_hashtags: str = "") -> str:
-    """بخش پایانی ثابتِ همه‌ی پست‌ها: لینک‌ها + هشتگ‌ها + امضا."""
-    tags = CORE_HASHTAGS + (f" {extra_hashtags}" if extra_hashtags else "")
-    return f"{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}\n\n{tags}\n\n{SIGNATURE}"
 
 
 def fa_num(n: int) -> str:
@@ -44,22 +40,32 @@ def fa_num(n: int) -> str:
     return str(n).translate(str.maketrans("0123456789", FA_DIGITS))
 
 
-SYSTEM_PROMPT = """تو نویسنده‌ی رسمی کانال تلگرام «Alipiano» هستی؛ معلم پیانوی صبور، باتجربه و الهام‌بخش، که درس‌نامه‌ها را به فارسی گرم، ساده و امیدبخش می‌نویسی.
+def brand_footer() -> str:
+    """بخش پایانی ثابت پست‌های آموزشی: جداکننده + لینک‌ها + هشتگ‌ها + امضا."""
+    return (
+        f"{SEPARATOR}\n📎 لینک‌ها:\n{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}\n\n"
+        f"{LESSON_HASHTAGS}\n\n{SIGNATURE}"
+    )
 
-جلسه را دقیقاً با همین ساختار (به این ترتیب) بنویس:
-۱) مقدمه‌ی ۲ خطی: چه‌چیزهایی را در جلسه‌ی قبل یاد گرفتیم و امروز چه می‌کنیم.
-۲)  تئوری: توضیح ساده با مثال و تشبیه از زندگی روزمره.
-۳)  تمرین عملی: تمرین‌های شماره‌دار؛ هر تمرین در یک تا دو خط کوتاه: کدام دست، کدام کلیدها، انگشت شماره‌ی چند، با چه سرعتی.
-۴) 🕐 برنامه‌ی تمرین امروز: ۱۵ تا ۳۰ دقیقه، بخش‌بندی‌شده با زمان.
-۵) 💡 نکات مهم و اشتباهات رایج: ۳ تا ۵ مورد، هر مورد یک خط.
-۶) 🔜 جلسه‌ی بعد: یک خط پیش‌نمایش.
+
+SYSTEM_PROMPT = """تو نویسنده‌ی رسمی کانال تلگرام «Alipiano» هستی؛ معلم پیانوی صبور و باتجربه که درس‌نامه‌ها را به فارسی روان، گرم و صمیمی می‌نویسی.
+
+جلسه را دقیقاً با همین ساختار بنویس:
+۱) خوش‌آمدگویی گرمِ ۲ خطی که با «سلام دوست عزیزم 🌿» شروع شود و هدف امروز را کوتاه بگوید.
+۲) یک خط جداکننده از ۲۰ کاراکتر ─
+۳) «📚 تئوری امروز:» و بعد توضیح کوتاه و ساده با فاصله‌گذاری خوب، با مثال و تشبیه از زندگی روزمره.
+۴) یک خط جداکننده از ۲۰ کاراکتر ─
+۵) «🎯 تمرین عملی:» و بعد تمرین‌های شماره‌دار (۱. . ۳. ...)؛ هر تمرین در یک خط کوتاه، با مشخص کردن کدام دست، کدام کلیدها، انگشت شماره‌ی چند و سرعت.
+۶) یک خط جداکننده از ۲۰ کاراکتر ─
+۷) «⏱ برنامه پیشنهادی امروز:» و بعد یک برنامه‌ی ۱۵ تا ۳۰ دقیقه‌ای که به بخش‌های ۵ تا ۱۰ دقیقه‌ای تقسیم شده و هر بخش با • شروع شود.
 
 قوانین:
-- خطوط کوتاه و خوانا بنویس؛ هرگز پاراگراف طولانی.
-- متن خالص مناسب تلگرام؛ بدون تگ HTML یا مارک‌داون (بدون **, ##, [] و لینک).
-- لحن: صمیمی، محترمانه و الهام‌بخش؛ محدودیت‌ها را به فرصت تبدیل کن.
-- طول: ۵۰۰ تا ۸۰۰ کلمه.
-- خط عنوان، شماره‌ی جلسه، وب‌سایت، هشتگ و امضا را خودت ننویس؛ سیستم اضافه می‌کند.
+- فارسی روان، گرم و صمیمی؛ خطوط کوتاه و خوانا.
+- یک تا دو نکته‌ی مهم یا اشتباه رایج را طبیعی داخل تئوری یا تمرین‌ها بگنج.
+- متن خالص؛ بدون تگ HTML یا مارک‌داون.
+- طول: ۳۵۰ تا ۰۰ کلمه.
+- عنوان و شماره‌ی جلسه را خودت ننویس؛ بخش «📎 لینک‌ها»، هشتگ‌ها و امضا را هم ننویس — سیستم اضافه می‌کند.
+- هیچ لینکی در متن ننویس.
 - به اینکه هوش مصنوعی هستی اشاره نکن.
 - فرض کن شاگرد همه‌ی جلسات قبل را کامل کرده است."""
 
@@ -72,6 +78,18 @@ def load_json(name: str):
 def save_progress(progress: dict) -> None:
     with open(os.path.join(DATA_DIR, "progress.json"), "w", encoding="utf-8") as f:
         json.dump(progress, f, ensure_ascii=False, indent=2)
+
+
+def add_self_link(post: str, message_id: int) -> str | None:
+    """لینکِ خودِ پست (📌 جلسه کامل) را به بخش لینک‌ها اضافه می‌کند.
+    فقط وقتی می‌توان متن را در همان اندازه در یک پیام جا داد، برمی‌گردد."""
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    username = chat_id[1:] if chat_id.startswith("@") else None
+    if not username:
+        return None
+    link = f"https://t.me/{username}/{message_id}"
+    new_post = post.replace(APPLE_LINE, f"{APPLE_LINE}\n📌 جلسه کامل: {link}")
+    return new_post if len(new_post) <= 4000 else None
 
 
 def main() -> None:
@@ -110,7 +128,7 @@ def main() -> None:
         f"هدف این جلسه: {lesson.get('goal', '')}\n"
         f"جلسه‌ی قبل (تدریس‌شده، فرض کن شاگرد کامل یاد گرفته): {prev_title}\n"
         f"جلسه‌ی بعد (هنوز تدریس نشده): {next_title}\n\n"
-        "متن کامل این جلسه را دقیقاً طبق قوانین بنویس."
+        "متن کامل این جلسه را دقیقاً طبق ساختار و قوانین بنویس."
     )
 
     print(f"✍️ در حال تولید جلسه {n}/{total}: {lesson['title']}")
@@ -123,10 +141,20 @@ def main() -> None:
         max_tokens=3000,
     )
 
-    header = f"🎹 دوره‌ی آموزش پیانو | جلسه‌ی {fa_num(n)} از {fa_num(total)}\n{lesson['title']}\n"
-    post = header + "\n" + body + "\n\n" + brand_footer(extra_hashtags="#آموزش_پیانو")
+    header = f"🎹 دوره آموزش پیانو | جلسه {fa_num(n)} از {fa_num(total)}\n\n{lesson['title']}\n\n"
+    post = header + body + "\n\n" + brand_footer()
 
-    common.send_message(post, dry_run=dry_run)
+    ids = common.send_message(post, dry_run=dry_run)
+
+    # ── اضافه‌کردن خودکار «📌 جلسه کامل» بعد از ارسال ──────────────
+    if not dry_run and len(ids) == 1:
+        full = add_self_link(post, ids[0])
+        if full:
+            try:
+                common.edit_message(ids[0], full)
+                print("✔ لینک «📌 جلسه کامل» به پست اضافه شد.")
+            except Exception as exc:  # noqa: BLE001
+                print(f"⚠ لینک «📌 جلسه کامل» اضافه نشد ({exc}) — پست کامل است، فقط بدون این لینک.")
 
     if dry_run:
         print("ℹ️ حالت DRY RUN: پیشرفت به‌روز نمی‌شود.")
@@ -135,8 +163,8 @@ def main() -> None:
     progress["next_lesson"] = n + 1
     progress["last_posted_lesson"] = n
     save_progress(progress)
-    nxt = f"جلسه‌ی {fa_num(n + 1)}" if n + 1 <= total else "پایان دوره"
-    print(f"✔ جلسه‌ی {n} ارسال شد. بعدی: {nxt}")
+    nxt = f"جلسه {fa_num(n + 1)}" if n + 1 <= total else "پایان دوره"
+    print(f"✔ جلسه {fa_num(n)} ارسال شد. بعدی: {nxt}")
 
 
 if __name__ == "__main__":
