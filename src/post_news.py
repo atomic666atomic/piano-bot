@@ -6,7 +6,7 @@
 1) خبرهای تازه‌ی ۳۶ ساعت اخیر از فیدهای RSS معتبر
 2) انتخاب بهترین خبرها با امتیازدهی (پیانو > کلاسیک > AI > موسیقی)
 3) خلاصه‌ی فارسی: اول با Groq (کیفیت بالا)؛ اگر در دسترس نبود، ترجمه‌ی رایگان
-4) پست نهایی دقیقاً با فرمت رسمی برند Alipiano (وب‌سایت + هشتگ‌ها + امضا)
+4) پست نهایی دقیقاً با فرمت رسمی برند Alipiano (لینک‌ها انتهای پست + امضا)
 """
 
 import os
@@ -24,17 +24,22 @@ import common
 from ai import groq
 
 # ── هویت رسمی برند Alipiano ─────────────────────────────────
-WEBSITE_LINE = "🔗 وب‌سایت رسمی: https://alipiano.ir"
-SPOTIFY_LINE = "🎧 Spotify: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
-APPLE_LINE = "🎧 Apple Music: https://music.apple.com/us/artist/ali-baghbani/1828748850"
-CORE_HASHTAGS = "#Alipiano #AliBaghbani #OneHandOneDream #پیانو #پیانیست_تک‌دست"
+SEPARATOR = "─" * 20
+WEBSITE_LINE = "🌐 وب‌سایت: https://alipiano.ir"
+SPOTIFY_LINE = "🎧 اسپاتیفای: https://open.spotify.com/artist/3DYod604QbWaMTlV7MN6hN"
+APPLE_LINE = "🍎 اپل موزیک: https://music.apple.com/us/artist/ali-baghbani/1828748850"
+CORE_HASHTAGS = "#Alipiano #علی_باغبانی #OneHandOneDream #پیانو"
 SIGNATURE = "—\nAli Piano | One Hand, Infinite Emotions ✨"
 
 
-def brand_footer(extra_hashtags: str = "") -> str:
-    """بخش پایانی ثابتِ همه‌ی پست‌ها: لینک‌ها + هشتگ‌ها + امضا."""
-    tags = CORE_HASHTAGS + (f" {extra_hashtags}" if extra_hashtags else "")
-    return f"{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}\n\n{tags}\n\n{SIGNATURE}"
+def brand_links_block() -> str:
+    """بخش «📎 لینک‌ها» با سه لینک رسمی برند."""
+    return f"📎 لینک‌ها:\n{WEBSITE_LINE}\n{SPOTIFY_LINE}\n{APPLE_LINE}"
+
+
+def brand_footer() -> str:
+    """بخش پایانی ثابتِ همه‌ی پست‌ها: جداکننده + لینک‌ها + هشتگ‌ها + امضا."""
+    return f"{SEPARATOR}\n{brand_links_block()}\n\n{CORE_HASHTAGS}\n\n{SIGNATURE}"
 
 
 # ── منابع خبری (RSS رایگان) ─────────────────────────────────
@@ -250,7 +255,8 @@ def persian_date() -> str:
 
 
 def build_post(items: list, summaries: list) -> str:
-    """پست نهایی دقیقاً با فرمت رسمی برند Alipiano."""
+    """پست نهایی دقیقاً با فرمت رسمی برند Alipiano.
+    طبق قانون برند: هیچ لینک خامی وسط متن نیست؛ همه‌ی لینک‌ها مرتب در انتها."""
     lines = [
         "🎹 اخبار امروز در دنیای پیانو، موسیقی و AI",
         f"🗓 {persian_date()}",
@@ -258,9 +264,10 @@ def build_post(items: list, summaries: list) -> str:
     ]
     for i, (it, summary) in enumerate(zip(items, summaries), 1):
         lines.append(f"{fa_num(i)}) {summary} ({it['source']})")
-        lines.append(f"🔗 {it['link']}")
-        lines.append("")
-    lines.append(brand_footer(extra_hashtags="#اخبار_موسیقی"))
+    lines += ["", SEPARATOR, "📎 لینک‌ها:"]
+    for i, it in enumerate(items, 1):
+        lines.append(f"{fa_num(i)}) {it['link']}")
+    lines += ["", WEBSITE_LINE, SPOTIFY_LINE, APPLE_LINE, "", CORE_HASHTAGS, "", SIGNATURE]
     return "\n".join(lines)
 
 
